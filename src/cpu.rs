@@ -1,3 +1,5 @@
+use crate::display::DISPLAY;
+
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -55,58 +57,52 @@ impl CPU {
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self, DISPLAY: &mut DISPLAY) {
         // Fetch the instruction that PC is currently pointing at from memory
         let opcode: u16 = (self.memory[self.pc as usize] as u16) << 8
             | (self.memory[self.pc as usize + 1] as u16);
-        
+
         let nnn: u16 = (opcode & 0x0FFF) as u16;            // 0000NNNN NNNNNNNN | lowest 12 bits
         let kk: u8 = (opcode & 0x00FF) as u8;               // 00000000 KKKKKKKK | lowest 8 bits
         let x = ((opcode & 0x0F00) >> 8) as usize;          // 0000XXXX 00000000 | lower 4 bits of the high byte
         let y = ((opcode & 0x00F0) >> 4) as usize;          // 00000000 YYYY0000 | upper 4 bits of the lower byte
         let n = (opcode & 0x000F) as usize;                 // 00000000 0000NNNN | lowest 4 bits
 
-        println!("opcode: {:X} | PC: {:#?}", opcode, self.pc);
-        
-        self.pc += 2; // Increment PC
+         // println!("opcode: {:X} | PC: {:#?}", opcode, self.pc);
+
+        self.pc += 2;
 
         // Decode and execute the instruction
         match opcode & 0xF000 {
-            0x0000 => {
-                match opcode & 0x00FF {
-                    0x00E0 => {
-                        // println!("CLEAR");
-                    }
-
-                    _ => {
-                        //
-                    }
+            0x0000 => match opcode & 0x00FF {
+                0x00E0 => {
+                    println!("CLEAR");
                 }
-            }
+
+                _ => panic!("Unimplemented opcode {:?}", opcode),
+            },
 
             0x1000 => {
-                // println!("JUMP");
+                println!("JUMP");
             }
 
             0x6000 => {
-                // println!("SET REGISTER VX");
+                println!("SET REGISTER VX");
             }
 
             0x7000 => {
-                // println!("ADD VALUE TO REGISTER VX");
+                println!("ADD VALUE TO REGISTER VX");
             }
 
             0xA000 => {
-                // println!("SET INDEX REGISTER I");
+                println!("SET INDEX REGISTER I");
             }
 
             0xD000 => {
-                // println!("DISPLAY / DRAW");
+                println!("DISPLAY / DRAW");
             }
 
-            _ => {
-                //
-            }
+            _ => panic!("Unimplemented opcode {:?}", opcode),
         }
     }
 }
