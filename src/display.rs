@@ -18,10 +18,11 @@ pub struct DISPLAY {
 
 impl DISPLAY {
     pub fn new(sdl_context: &Sdl) -> DISPLAY {
-        let video_subsystem = sdl_context.video().unwrap();
 
+        // Create an SDL2 windows with canvas
+        let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
-            .window("Rust CHIP-8 interpreter", 64 * SCALE, 32 * SCALE)
+            .window("Rust CHIP-8 interpreter", WIDTH as u32 * SCALE, HEIGHT as u32 * SCALE)
             .position_centered()
             .build()
             .unwrap();
@@ -29,16 +30,19 @@ impl DISPLAY {
 
         DISPLAY {
             canvas,
-            background_color: FOREGROUND_COLOR,
-            foreground_color: BACKGROUND_COLOR,
+            background_color: BACKGROUND_COLOR,
+            foreground_color: FOREGROUND_COLOR,
         }
+
     }
 
     pub fn draw(&mut self, pixels: &[[bool; WIDTH]; HEIGHT]) {
-        self.canvas.set_draw_color(BACKGROUND_COLOR);
+
+        // Draw pixels to the display
+        self.canvas.set_draw_color(self.background_color);
         self.canvas.clear();
 
-        self.canvas.set_draw_color(FOREGROUND_COLOR);
+        self.canvas.set_draw_color(self.foreground_color);
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
                 if pixels[y][x] {
@@ -49,5 +53,6 @@ impl DISPLAY {
             }
         }
         self.canvas.present();
+
     }
 }

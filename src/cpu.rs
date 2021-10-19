@@ -1,6 +1,7 @@
 use crate::display::{DISPLAY, HEIGHT, WIDTH};
 use std::borrow::BorrowMut;
 
+// Font data
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -21,23 +22,25 @@ const FONT: [u8; 80] = [
 ];
 
 pub struct CPU {
-    memory: [u8; 4096],                 // 4 kilobytes of RAM
-    pc: u16,                            // program counter
-    i: u16,                             // index register
-    stack: [u16; 16],                   // stack
-    sp: u8,                             // stack pointer
-    delay_timer: u8,                    // delay timer (decrement 60 times a sec until 0)
-    sound_timer: u8,                    // sound timer (same as delay_timer but beep while not 0)
-    v: [u8; 16],                        // general purpose variable registers V0 through VF
-    pixels: [[bool; WIDTH]; HEIGHT]     // 64x32 display
+    memory: [u8; 4096],                 // RAM (4 KiB)
+    pc: u16,                            // Program counter
+    i: u16,                             // Index register
+    stack: [u16; 16],                   // Stack
+    sp: u8,                             // Stack pointer
+    delay_timer: u8,                    // Delay timer (decrement 60 times a sec until 0)
+    sound_timer: u8,                    // Sound timer (same as delay_timer but beep while not 0)
+    v: [u8; 16],                        // General purpose variable registers V0 through VF
+    pixels: [[bool; WIDTH]; HEIGHT]     // Display (64x32)
 }
 
 impl CPU {
     pub fn new() -> CPU {
-        let mut memory = [0; 4096];         // initialize memory
+
+        // Initialize memory and load font at address 0x050 -> 0x09F
+        let mut memory = [0; 4096];
 
         for i in 0..80 {
-            memory[i + 80] = FONT[i];       // load font into memory at 050 -> 09F
+            memory[i + 80] = FONT[i];
         }
 
         CPU {
@@ -53,32 +56,35 @@ impl CPU {
         }
     }
 
-    pub fn load_bin(&mut self, rom: Vec<u8>) {
+    pub fn load_rom(&mut self, rom: Vec<u8>) {
+
+        // Load ROM into memory
         let rom_length = rom.len();
         for i in 0..rom_length {
-            self.memory[i + 512] = rom[i];                  // load ROM into memory
+            self.memory[i + 512] = rom[i];
         }
+
     }
 
     pub fn step(&mut self, display: &mut DISPLAY) {
 
-        // Fetch the instruction that PC is currently pointing at from memory
+        // Fetch instruction that PC is currently pointing at from memory
         let opcode: u16 = (self.memory[self.pc as usize] as u16) << 8
             | (self.memory[self.pc as usize + 1] as u16);
 
         let nnn: u16 = (opcode & 0x0FFF) as u16;            // 0000NNNN NNNNNNNN | lowest 12 bits
         let nn: u8 = (opcode & 0x00FF) as u8;               // 00000000 NNNNNNNN | lowest 8 bits
         let n = (opcode & 0x000F) as usize;                 // 00000000 0000NNNN | lowest 4 bits
-        let x = ((opcode & 0x0F00) >> 8) as usize;          // 0000XXXX 00000000 | lower 4 bits of the high byte
-        let y = ((opcode & 0x00F0) >> 4) as usize;          // 00000000 YYYY0000 | upper 4 bits of the lower byte
+        let x = ((opcode & 0x0F00) >> 8) as usize;          // 0000XXXX 00000000 | lower 4 bits of high byte
+        let y = ((opcode & 0x00F0) >> 4) as usize;          // 00000000 YYYY0000 | upper 4 bits of low byte
 
+        // Increment program counter
         self.pc += 2;
 
-        // Decode and execute the instruction
+        // Decode and execute instruction
         match opcode & 0xF000 {
             0x0000 => match opcode & 0x00FF {
-                0x00E0 => {
-                    // [00E0] CLEAR
+                0x00E0 => { // [00E0]
                     println!("CLEAR");
                     self.pixels = [[false; WIDTH]; HEIGHT];
                 }
@@ -86,57 +92,59 @@ impl CPU {
                 _ => panic!("Unimplemented opcode {:?}", opcode),
             },
 
-            0x1000 => {
-                // [1NNN] JUMP TO [NNN]
+            0x1000 => { // [1NNN]
                 println!("JUMP TO [{:#0X}]", nnn);
                 self.pc = nnn;
             }
 
-            0x6000 => {
-                // SET REGISTER [VX] TO [NN]
+            0x6000 => { // [6XNN]
                 println!("SET REGISTER [V{:#}] TO [{:#0X}]", x, nn);
                 self.v[x] = nn;
             }
 
-            0x7000 => {
-                 // [7XNN] ADD [NN] TO REGISTER [VX]
+            0x7000 => { // [7XNN]
                 println!("ADD [{:#0X}] TO REGISTER [V{:#}]", nn, x);
                 self.v[x] += nn;
             }
 
-            0xA000 => {
-                 // [ANNN] SET INDEX REGISTER I TO [NNN]
+            0xA000 => { // [ANNN]
                 println!("SET INDEX REGISTER I TO [{:#0X}]", nnn);
                 self.i = nnn;
             }
 
-            0xD000 => {
-                // [DXYN] DRAW SPRITE AT COORDINATE [VX, VY] WITH A HEIGHT OF [N]
+            0xD000 => { // [DXYN]
                 println!("DRAW SPRITE AT [{}, {}] WITH HEIGHT OF [{}]", x, y, n);
                 self.draw(x, y, n, (*display).borrow_mut());
             }
 
             _ => panic!("Unimplemented opcode {:?}", opcode),
         }
+        
     }
 
-    pub fn draw(&mut self, x: usize, y: usize, n: usize, display: &mut DISPLAY) {
-
-        let x_coord = self.v[x] as usize;
-        let y_coord = self.v[y] as usize;
+    pub fn draw(&mut self, vx: usize, vy: usize, h: usize, display: &mut DISPLAY) {
+        
+        // Get x and y coords from VX and VY registers
+        let x_coord = self.v[vx] as usize;
+        let y_coord = self.v[vy] as usize;
         let mut j = 0;
         
-        for row in 0..n {
+        // For every row in render height
+        for row in 0..h {
+            // Get sprite from memory
             let sprite = self.memory[usize::from(self.i + j)];
-
+            // For every column in sprite width (8)
             for col in 0..8 {
+                // Set pixel on/off
                 let old_pixel = self.pixels[y_coord + row][x_coord + col];
-                let new_pixel = (sprite & (1 << (7 - col))) != 0; // ??
+                let new_pixel = (sprite & (1 << (7 - col))) != 0;
                 self.pixels[y_coord + row][x_coord + col] = old_pixel ^ new_pixel;
             }
 
             j += 1;
         }
+
+        // Draw pixels to the display
         display.draw(&self.pixels);
     }
 

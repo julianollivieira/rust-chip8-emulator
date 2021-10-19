@@ -5,7 +5,7 @@ mod cpu;
 mod display;
 
 fn main() {
-    // Read the ROM from a file
+    // Read ROM from a file
     let args: Vec<String> = env::args().collect();
     let rom_file_path = &args[1];
     let rom = fs::read(rom_file_path).expect("Failed to read ROM data");
@@ -19,7 +19,7 @@ fn main() {
 
     // Initialize the CPU
     let mut CPU = cpu::CPU::new();
-    CPU.load_bin(rom);
+    CPU.load_rom(rom);
 
     loop {
         CPU.step(&mut DISPLAY);
