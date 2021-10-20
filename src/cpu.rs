@@ -89,11 +89,24 @@ impl CPU {
                     self.pixels = [[false; WIDTH]; HEIGHT];
                 }
 
-                _ => panic!("Unimplemented opcode {:?}", opcode),
+                0x00EE => { //[00EE]
+                    println!("RETURN FROM SUBROUTINE");
+                    self.sp -= 1;
+                    self.pc = self.stack[self.sp as usize];
+                }
+
+                _ => println!("Unimplemented opcode {:?}", opcode),
             },
 
             0x1000 => { // [1NNN]
                 println!("JUMP TO [{:#0X}]", nnn);
+                self.pc = nnn;
+            }
+
+            0x2000 => { // [2NNN]
+                println!("CALL SUBROUTINE AT {}", nnn);
+                self.stack[self.sp as usize] = self.pc;
+                self.sp = self.sp.wrapping_add(1);
                 self.pc = nnn;
             }
 
@@ -104,7 +117,7 @@ impl CPU {
 
             0x7000 => { // [7XNN]
                 println!("ADD [{:#0X}] TO REGISTER [V{:#}]", nn, x);
-                self.v[x] += nn;
+                self.v[x] += self.v[x].wrapping_add(nn);
             }
 
             0xA000 => { // [ANNN]
@@ -117,7 +130,7 @@ impl CPU {
                 self.draw(x, y, n, (*display).borrow_mut());
             }
 
-            _ => panic!("Unimplemented opcode {:?}", opcode),
+            _ => println!("Unimplemented opcode {:?}", opcode),
         }
         
     }
@@ -125,20 +138,31 @@ impl CPU {
     pub fn draw(&mut self, vx: usize, vy: usize, h: usize, display: &mut DISPLAY) {
         
         // Get x and y coords from VX and VY registers
-        let x_coord = self.v[vx] as usize;
-        let y_coord = self.v[vy] as usize;
+        let x_coord = self.v[vx] as usize % WIDTH;
+        let y_coord = self.v[vy] as usize % HEIGHT;
         let mut j = 0;
+
+        self.v[0xF] = 0;
         
         // For every row in render height
         for row in 0..h {
+            // Stop drawing this row if we reach the end of the screen
+            if y_coord >= HEIGHT {
+                break;
+            }
             // Get sprite from memory
             let sprite = self.memory[usize::from(self.i + j)];
             // For every column in sprite width (8)
             for col in 0..8 {
+                // Stop drawing this column if we reach the end of the screen
+                if x_coord >= WIDTH {
+                    break;
+                }
                 // Set pixel on/off
                 let old_pixel = self.pixels[y_coord + row][x_coord + col];
                 let new_pixel = (sprite & (1 << (7 - col))) != 0;
                 self.pixels[y_coord + row][x_coord + col] = old_pixel ^ new_pixel;
+                self.v[0xF] |= self.pixels[y_coord + row][x_coord + col] as u8;
             }
 
             j += 1;
