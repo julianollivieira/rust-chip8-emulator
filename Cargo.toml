@@ -11,3 +11,4 @@ license-field = "LICENSE"
 
 [dependencies]
 sdl2 = "0.35"
+rand = "0.8.0"

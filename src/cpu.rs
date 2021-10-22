@@ -1,6 +1,9 @@
+extern crate rand;
+
 use crate::display::{DISPLAY, HEIGHT, WIDTH};
 use std::borrow::BorrowMut;
 
+use rand::Rng;
 // Font data
 const FONT: [u8; 80] = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -74,9 +77,9 @@ impl CPU {
 
         let nnn: u16 = (opcode & 0x0FFF) as u16;            // 0000NNNN NNNNNNNN | lowest 12 bits
         let nn: u8 = (opcode & 0x00FF) as u8;               // 00000000 NNNNNNNN | lowest 8 bits
-        let n = (opcode & 0x000F) as usize;                 // 00000000 0000NNNN | lowest 4 bits
-        let x = ((opcode & 0x0F00) >> 8) as usize;          // 0000XXXX 00000000 | lower 4 bits of high byte
-        let y = ((opcode & 0x00F0) >> 4) as usize;          // 00000000 YYYY0000 | upper 4 bits of low byte
+        let n: usize = (opcode & 0x000F) as usize;          // 00000000 0000NNNN | lowest 4 bits
+        let x: usize = ((opcode & 0x0F00) >> 8) as usize;   // 0000XXXX 00000000 | lower 4 bits of high byte
+        let y: usize = ((opcode & 0x00F0) >> 4) as usize;   // 00000000 YYYY0000 | upper 4 bits of low byte
 
         // Increment program counter
         self.pc += 2;
@@ -84,51 +87,124 @@ impl CPU {
         // Decode and execute instruction
         match opcode & 0xF000 {
             0x0000 => match opcode & 0x00FF {
-                0x00E0 => { // [00E0]
-                    println!("CLEAR");
-                    self.pixels = [[false; WIDTH]; HEIGHT];
-                }
+                0x00E0 => { self.pixels = [[false; WIDTH]; HEIGHT]; }  // [00E0]
 
-                0x00EE => { //[00EE]
-                    println!("RETURN FROM SUBROUTINE");
+                0x00EE => {
                     self.sp -= 1;
                     self.pc = self.stack[self.sp as usize];
-                }
+                }  //[00EE]
 
                 _ => println!("Unimplemented opcode {:?}", opcode),
             },
 
-            0x1000 => { // [1NNN]
-                println!("JUMP TO [{:#0X}]", nnn);
-                self.pc = nnn;
-            }
+            0x1000 => { self.pc = nnn; } // [1NNN]
 
-            0x2000 => { // [2NNN]
-                println!("CALL SUBROUTINE AT {}", nnn);
+            0x2000 => {
                 self.stack[self.sp as usize] = self.pc;
                 self.sp = self.sp.wrapping_add(1);
                 self.pc = nnn;
+            }  // [2NNN]
+
+            0x3000 => { if self.v[x] == nn { self.pc += 2; } }  // [3XNN]
+
+            0x4000 => { if self.v[x] != nn { self.pc += 2; } }  // [4XNN]
+
+            0x5000 => { if self.v[x] == self.v[y] { self.pc += 2; } }  // [4XY0]
+
+            0x6000 => { self.v[x] = nn; } // [6XNN]
+
+            0x7000 => { self.v[x] = self.v[x].wrapping_add(nn); }  // [7XNN]
+
+            0x8000 => match opcode & 0x000F {
+                0x0000 => { self.v[x] = self.v[y]; }  // [8XY0]
+
+                0x0001 => { self.v[x] |= self.v[y] } // [8XY1]
+
+                0x0002 => { self.v[x] &= self.v[y] } // [8XY2]
+
+                0x0003 => { self.v[x] ^= self.v[y] } // [8XY3]
+
+                0x0004 => {
+                    self.v[x] = self.v[x].wrapping_add(self.v[y]);
+                    if self.v[x] + self.v[y] > 0xFF as u8 {
+                        self.v[0xF] = 1;
+                    } else {
+                        self.v[0xF] = 0;
+                    }
+                } // [8XY4]
+
+                0x0005 => { 
+                    self.v[x] = self.v[x].wrapping_sub(self.v[y]);
+                    if self.v[x] > self.v[y] {
+                        self.v[0xF] = 1;
+                    } else {
+                        self.v[0xF] = 0;
+                    }
+                } // [8XY5]
+
+                0x0006 => { 
+                    self.v[0xF] = self.v[x] & 0x0F;
+                    self.v[x] >>= 1;
+                } // [8XY6]
+
+                0x0007 => { 
+                    self.v[x] = self.v[y].wrapping_sub(self.v[x]);
+                    if self.v[y] > self.v[x] {
+                        self.v[0xF] = 1;
+                    } else {
+                        self.v[0xF] = 0;
+                    }
+                } // [8XY7]
+
+                0x000E => { 
+                    self.v[0xF] = self.v[x] & 0xF0;
+                    self.v[x] <<= 1;
+                } // [8XYE]
+
+                _ => println!("Unimplemented opcode {:?}", opcode),
             }
 
-            0x6000 => { // [6XNN]
-                println!("SET REGISTER [V{:#}] TO [{:#0X}]", x, nn);
-                self.v[x] = nn;
+            0x9000 => { if self.v[x] != self.v[y] { self.pc += 2; } }  // [9XY0]
+
+            0xA000 => { self.i = nnn; }  // [ANNN]
+
+            0xB000 => { self.pc = nnn + self.v[0x0] as u16; } // [BNNN]
+
+            0xC000 => { self.v[x] = nn & rand::thread_rng().gen::<u8>() } // [CXNN]
+
+            0xD000 => { self.draw(x, y, n, (*display).borrow_mut()); }  // [DXYN]
+
+            0xE000 => match opcode & 0x000F {
+                0x009E => {  } // [EX9E]
+
+                0x00A1 => {  } // [EXA1]
+
+                _ => println!("Unimplemented opcode {:?}", opcode),
             }
 
-            0x7000 => { // [7XNN]
-                println!("ADD [{:#0X}] TO REGISTER [V{:#}]", nn, x);
-                self.v[x] += self.v[x].wrapping_add(nn);
+            0xF000 => match opcode & 0x000F {
+                0x0007 => {  } // [FX07]
+
+                0x0015 => {  } // [FX15]
+
+                0x0018 => {  } // [FX18]
+
+                0x001E => {  } // [FX1E]
+
+                0x000A => {  } // [FX0A]
+
+                0x0029 => {  } // [FX29]
+
+                0x0033 => {  } // [FX33]
+
+                0x0055 => {  } // [FX55]
+
+                0x0065 => {  } // [FX65]
+
+                _ => println!("Unimplemented opcode {:?}", opcode),
             }
 
-            0xA000 => { // [ANNN]
-                println!("SET INDEX REGISTER I TO [{:#0X}]", nnn);
-                self.i = nnn;
-            }
 
-            0xD000 => { // [DXYN]
-                println!("DRAW SPRITE AT [{}, {}] WITH HEIGHT OF [{}]", x, y, n);
-                self.draw(x, y, n, (*display).borrow_mut());
-            }
 
             _ => println!("Unimplemented opcode {:?}", opcode),
         }
