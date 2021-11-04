@@ -3,6 +3,7 @@ use std::fs;
 
 mod cpu;
 mod display;
+mod debug;
 
 fn main() {
     // Read ROM from a file
@@ -18,10 +19,11 @@ fn main() {
     let mut DISPLAY = display::DISPLAY::new(&sdl_context);
 
     // Initialize the CPU
-    let mut CPU = cpu::CPU::new();
+    let mut CPU = cpu::CPU::new(DISPLAY);
     CPU.load_rom(rom);
 
     loop {
-        CPU.step(&mut DISPLAY);
+        // CPU.step(&mut DISPLAY);
+        CPU.step();
     }
 }
