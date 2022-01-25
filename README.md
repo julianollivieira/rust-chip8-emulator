@@ -1,5 +1,5 @@
 # Rust CHIP-8 interpreter
-🕹️ A CHIP-8 interpreter written in Rust using Rust-SDL2
+🕹️ A WIP CHIP-8 interpreter written in Rust using Rust-SDL2
 
 ## Sources
 - [**The Rust Programming Language Book**](https://doc.rust-lang.org/book/)
