@@ -1,29 +1,31 @@
-use std::env;
-use std::fs;
-
 mod cpu;
 mod display;
-mod debug;
+mod font;
 
 fn main() {
-    // Read ROM from a file
-    let args: Vec<String> = env::args().collect();
+    // Get the first argument
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("Usage: {} <file>", args[0]);
+        std::process::exit(1);
+    }
+
+    // Read the ROM file
     let rom_file_path = &args[1];
-    let rom = fs::read(rom_file_path).expect("Failed to read ROM data");
+    let rom = std::fs::read(rom_file_path).expect("Failed to read ROM data");
     if rom.len() >= 3585 {
         panic!("ROM is too large! size: {}", rom.len());
     }
 
-    // Initialize the DISPLAY
+    // TODO: Initialize the display
     let sdl_context = sdl2::init().unwrap();
-    let mut DISPLAY = display::DISPLAY::new(&sdl_context);
+    let display = display::Display::new(sdl_context);
 
-    // Initialize the CPU
-    let mut CPU = cpu::CPU::new(DISPLAY);
-    CPU.load_rom(rom);
+    // TODO: Initialize the CPU
+    let mut cpu = cpu::CPU::new(display);
+    cpu.load_rom(rom);
 
     loop {
-        // CPU.step(&mut DISPLAY);
-        CPU.step();
+        cpu.step();
     }
 }
