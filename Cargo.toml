@@ -10,5 +10,6 @@ license = "MIT"
 license-field = "LICENSE"
 
 [dependencies]
-sdl2 = "0.35"
-rand = "0.8.0"
+sdl2 = "0.35.2"
+rand = "0.8.5"
+clap = { version = "3.1.6", features = ["derive"] }
